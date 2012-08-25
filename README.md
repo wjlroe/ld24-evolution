@@ -1,10 +1,8 @@
 # Chaotic God
 
-
-
 ## Usage
 
-Play
+To Play, [visit the uploaded version](http://dnw27k0fsapad.cloudfront.net/)
 
 ## License
 

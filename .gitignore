@@ -8,6 +8,7 @@
 /.lein-deps-sum
 /.lein-plugins
 /.lein-cljs*
+/.lein-env
 /target
 /resources/public/game.js
 /_deploy
