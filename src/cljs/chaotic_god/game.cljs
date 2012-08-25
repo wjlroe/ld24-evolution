@@ -10,7 +10,8 @@
 (def sq-height 50)
 
 (def initial-world
-  [" M             "
+  ["               "
+   " M             "
    "ddddddddddddddd"
    "ddddddddddddddd"
    "ddddddddddddddd"
@@ -20,6 +21,9 @@
    "ddddddddddddddd"
    "ddddddddddddddd"
    "ddddddddddddddd"])
+
+(def world-width (dec (count (first initial-world))))
+(def total-width (* sq-width (count (first initial-world))))
 
 (def tile-to-colour
   {\M [67 67 67]
@@ -68,15 +72,19 @@
 
 (defn draw-square
   [surface x y tile]
-  (fill-rect surface [x y sq-width sq-height] (tile tile-to-colour [0 0 0])))
+  (fill-rect surface [x y sq-width sq-height] (tile tile-to-colour [0 0 0]))
+  (stroke-rect surface [x y sq-width sq-height] 1 [0 0 0]))
 
 (defn update-canvas
   [state surface]
   (let [[_ width height] surface
-        {:keys [world]} state]
+        {:keys [world selection]} state]
     (doseq [[y-index squares] (map-indexed vector world)
             [x-index square]  (map-indexed vector squares)]
-      (draw-square surface (* x-index sq-width) (* y-index sq-height) square))))
+      (draw-square surface (* x-index sq-width) (* y-index sq-height) square))
+    (js/console.log "selection:" (pr-str selection))
+    (when selection
+      (stroke-rect surface [(* (:x selection) sq-width) (* (:y selection) sq-height) sq-width sq-height] 1 [43 197 0]))))
 
 (defn deconstruct-environment
   [world {:keys [x y]}]
@@ -86,30 +94,86 @@
         [given-sq right]   [(first right) (rest right)]]
     {:above above
      :below below
-     :left left
-     :right right
+     :left (apply str left)
+     :right (apply str right)
      :given-row given-row
      :given-sq  given-sq}))
 
-(defn dig-away-earth
-  "Translate the given square coords into a tunnel square"
-  [world {:keys [x y]}]
-  (let [[above below]         (split-at y world)
-        [dig-row-then below]  [(first below) (rest below)]
-        [left right]          (split-at x dig-row-then)
-        [dig-square right]    [(first right) (rest right)]
-        dig-row-now           (apply str (concat left "t" right))]
-    (js/console.log "world:" (pr-str world) "x:" x "y:" y)
-    (js/console.log "above:" (pr-str above) "below:" (pr-str below))
-    (js/console.log "left:" (pr-str left) "dig-row-then:" (pr-str dig-row-then) "right:" (pr-str right) "dig-row-now:" (pr-str dig-row-now))
-    (concat above [dig-row-now] below)))
+(defn edge-left?
+  [x y _]
+  (= x 1))
+
+(defn edge-right?
+  [x y _]
+  (= x (- world-width 1)))
+
+(defn tunnel-to-left?
+  [x y {:keys [left]}]
+  (= \t (last left)))
+
+(defn tunnel-to-right?
+  [x y {:keys [right]}]
+  (= \t (first right)))
+
+(defn tunnel-above?
+  [x y {:keys [above]}]
+  (= \t (nth (last above) x)))
+
+(defn tunnel-2-above?
+  [x y {:keys [above]}]
+  (= \t (nth (second (reserve above)) x)))
+
+(defn tunnel-below?
+  [x y {:keys [below]}]
+  (= \t (nth (first below) x)))
+
+(defn tunnel-depth
+  [x y {:keys [above]}]
+  (count (take-while #(contains? #{\t \M} %) (reverse (map #(nth % x) above)))))
+
+(defn hit-bottom?
+  [x y {:keys [below]}]
+  (= 0 (count below)))
 
 (defn decide-where-to-dig
   [world {:keys [x y] :as dig-coords}]
   (if (or (= y 0) (= y 1)) ;; dig down into earth 2 squares first
     {:x x :y (inc y)}
-    (let [{:keys [above below left right given-row given-sq]}
-          (deconstruct-environment world dig-coords)])))
+    (let [env (deconstruct-environment world dig-coords)]
+      (js/console.log "env:" (pr-str env) "world-width:" world-width "dig-coords:" (pr-str dig-coords))
+      (cond
+       (hit-bottom? x y env)
+       dig-coords
+       (and (edge-left? x y env)
+            (< (tunnel-depth x y env) 2))
+       {:x x :y (inc y)}
+       (and (or (edge-left? x y env)
+                (not (edge-right? x y env)))
+            (not (tunnel-to-right? x y env)))
+       {:x (inc x) :y y}
+       (and (edge-right? x y env)
+            (tunnel-to-left? x y env))
+       {:x x :y (inc y)}
+       (and (edge-right? x y env)
+            (< (tunnel-depth x y env) 2))
+       {:x x :y (inc y)}
+       (edge-right? x y env)
+       {:x (dec x) :y y}
+       (and (not (edge-right? x y env))
+            (not (edge-left? x y env))
+            (tunnel-to-right? x y env))
+       {:x (dec x) :y y}
+       true
+       dig-coords))))
+
+(defn dig-away-earth
+  "Translate the given square coords into a tunnel square"
+  [world coords]
+  (let [{:keys [above below left right]}
+        (deconstruct-environment world coords)
+
+        dig-row-now (apply str (concat left "t" right))]
+    (concat above [dig-row-now] below)))
 
 (defn move-paleontologist
   [state]
@@ -131,28 +195,46 @@
                        (move-paleontologist)
                        )))))
 
-(defn click
-  [timer state surface event]
+(defn abs-pos-to-coords
+  [x y]
+  [(- (int (Math/ceil (/ x sq-width))) 1)
+   (- (int (Math/ceil (/ y sq-height))) 1)])
+
+(defn toggle-timer
+  [timer]
   (if (not (.-enabled timer))
     (. timer (start))
     (. timer (stop))))
 
+(defn click
+  [timer state surface event]
+  (swap! state (fn [curr]
+                 (let [abs-x (.-offsetX event)
+                       abs-y (.-offsetY event)
+                       [x y] (abs-pos-to-coords abs-x abs-y)]
+                   (assoc curr :selection {:x x :y y})))))
+
 (defn keypress
-  [state e]
+  [timer state e]
   (let [browser-event (.getBrowserEvent e)]
    (do
      (.log js/console "event:" e)
-     (.log js/console "br event:" browser-event))))
+     (.log js/console "br event:" browser-event))
+   (cond
+    (= (.-charCode browser-event) key-codes/SPACE)
+    (toggle-timer timer))))
 
 (defn ^:export main
   []
   (let [surface (surface)
         [_ width _] surface
-        timer (goog.Timer. 500)
-        state (atom {:world initial-world :paleontologist {:x 1 :y 0}})]
+        timer (goog.Timer. 300)
+        state (atom {:world initial-world
+                     :paleontologist {:x 1 :y 1}
+                     :selection nil})]
     (update-canvas @state surface)
     (. timer (start))
     (events/listen timer goog.Timer/TICK #(game timer state surface))
-    (events/listen js/window event-type/KEYPRESS #(keypress state %))
-    (events/listen js/window event-type/TOUCHSTART #(keypress state %))
+    (events/listen js/window event-type/KEYPRESS #(keypress timer state %))
+    (events/listen js/window event-type/TOUCHSTART #(keypress timer state %))
     (events/listen js/window event-type/CLICK #(click timer state surface %))))
