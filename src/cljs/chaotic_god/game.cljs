@@ -27,6 +27,9 @@
 (def total-width (* sq-width (count (first initial-world))))
 (def total-height (* sq-height world-height))
 (def running? (atom true))
+(def min-num-bones 8)
+(def bone-selection-square {:x 14 :y 0})
+(def blocky-font "20pt Geostar Fill")
 
 (def tile-to-colour
   {\space [90 126 175]
@@ -47,6 +50,37 @@
    \d :dirt
    \s :surface
    \space :sky})
+
+(defn donothing [])
+
+(defn empty-event-handlers
+  "Hack hack hack hack"
+  []
+  (events/removeAll))
+
+(defn win-screen
+  [state surface]
+  (let [[canvas] surface
+        god-image (dom/getElement "god")
+        win-image (dom/getElement "win")
+        win-text-image (dom/getElement "win-text")]
+    (empty-event-handlers)
+    (fill-rect surface [0 0 total-width total-height] [102 204 255])
+    (.drawImage canvas win-image 0 0)
+    (.drawImage canvas god-image (- total-width 300) (- total-height 300))
+    (.drawImage canvas win-text-image 0 (- total-height 400))))
+
+(defn lose-screen
+  [state surface]
+  (let [[canvas] surface
+        god-image (dom/getElement "god")
+        lose-image (dom/getElement "lose")
+        losing-text-image (dom/getElement "losing-text")]
+    (empty-event-handlers)
+    (fill-rect surface [0 0 total-width total-height] [102 204 255])
+    (.drawImage canvas lose-image 0 0)
+    (.drawImage canvas god-image (- total-width 300) (- total-height 300))
+    (.drawImage canvas losing-text-image 0 (- total-height 400))))
 
 (defn grid-to-dimentions
   "Take grid coords, [0 0], [0 2] and make coords out of them for the squares"
@@ -152,16 +186,38 @@
      :given-row given-row
      :given-sq  given-sq}))
 
+(defn draw-paleontologist
+  [surface {:keys [x y]}]
+  (let [[canvas] surface
+        image (dom/getElement "paleontologist")]
+    (.drawImage canvas image (* x sq-width) (* y sq-height))))
+
+(defn draw-bones
+  [surface bones]
+  (let [[canvas] surface
+        image (dom/getElement "bones")]
+    (doseq [{:keys [x y]} bones]
+      (.drawImage canvas image (* x sq-width) (* y sq-height)))))
+
+(defn draw-toolbar
+  [surface place-bones]
+  (fill-rect surface [(* world-width sq-width) 0 sq-width sq-height] [128 0 0])
+  (when place-bones
+    (stroke-rect surface [(* world-width sq-width) 0 sq-width sq-height] 1 [255 255 0]))
+  (draw-bones surface [{:x world-width :y 0}]))
+
 (defn draw-game-world
   [state surface]
   (let [[_ width height] surface
-        {:keys [world selection paleontologist]} state]
+        {:keys [world selection paleontologist bones place-bones]} state]
     (doseq [[y-index squares] (map-indexed vector world)
             [x-index square]  (map-indexed vector squares)]
       (let [coords {:x x-index :y y-index}
             env (deconstruct-environment world coords)]
         (draw-tile surface env coords (* x-index sq-width) (* y-index sq-height) square)))
-    (fill-rect surface [(* (:x paleontologist) sq-width) (* (:y paleontologist) sq-height) sq-width sq-height] [254 190 88])
+    (draw-toolbar surface place-bones)
+    (draw-bones surface bones)
+    (draw-paleontologist surface paleontologist)
     (when selection
       (stroke-rect surface [(* (:x selection) sq-width) (* (:y selection) sq-height) sq-width sq-height] 1 [43 197 0]))))
 
@@ -251,28 +307,53 @@
       :paleontologist new-paleontologist
       :world new-world)))
 
+(defn discover-bones
+  [state]
+  (let [{:keys [paleontologist bones bones-examined]} state]
+    (let [examined (if (contains? bones paleontologist)
+                     (conj bones-examined paleontologist)
+                     bones-examined)]
+      (assoc state :bones-examined examined))))
+
+(defn check-win-condition
+  [state]
+  (let [{:keys [bones-examined]} state]
+    (if (= (count bones-examined) min-num-bones)
+      (assoc state :stage :win)
+      state)))
+
 (defn pause-play-game
   ([forced]
-     (reset! running forced))
+     (reset! running? forced))
   ([]
      (swap! running? not)))
 
 (defn end-game?
   [{:keys [paleontologist] :as state}]
   (do
-    (when (= (:y paleontologist) world-height)
-      (pause-play-game false))
-    state))
+    (= (:y paleontologist) (dec world-height))))
+
+(defn win-game?
+  [state]
+  (= :win (:stage state)))
 
 (defn game
   [state surface]
   (let [[_ width height] surface]
     (when @running?
-     (swap! state (fn [curr]
-                    (draw-game-world curr surface)
-                    (-> curr
-                        (move-paleontologist)
-                        (end-game?)))))))
+      (swap! state (fn [curr]
+                     (-> curr
+                         (move-paleontologist)
+                         (discover-bones)
+                         (check-win-condition))))
+      (draw-game-world @state surface)
+      (when (win-game? @state)
+        (js/console.log "WIN!!!!")
+        (pause-play-game false)
+        (win-screen state surface))
+      (when (end-game? @state)
+        (pause-play-game false)
+        (lose-screen state surface)))))
 
 (defn abs-pos-to-coords
   [x y]
@@ -284,8 +365,16 @@
   (swap! state (fn [curr]
                  (let [abs-x (.-offsetX event)
                        abs-y (.-offsetY event)
-                       [x y] (abs-pos-to-coords abs-x abs-y)]
-                   (assoc curr :selection {:x x :y y})))))
+                       [x y] (abs-pos-to-coords abs-x abs-y)
+                       {:keys [bones place-bones]} curr]
+                   (js/console.log "bones:" (pr-str bones) "place-bones:" (pr-str place-bones))
+                   (if (= [x y] [(:x bone-selection-square) (:y bone-selection-square)])
+                     (assoc curr :place-bones true)
+                     (if (:place-bones curr)
+                       (assoc curr
+                         :bones (conj (:bones curr) {:x x :y y})
+                         :place-bones false)
+                       curr))))))
 
 (defn game-keypress
   [state e]
@@ -307,16 +396,26 @@
     (events/listen timer goog.Timer/TICK #(game state surface))
     (events/listen js/window event-type/KEYDOWN #(game-keypress state %))
     (events/listen js/window event-type/TOUCHSTART #(game-keypress state %))
-    (events/listen js/window event-type/CLICK #(game-click state surface %))))
+    (events/listen js/window event-type/MOUSEDOWN #(game-click state surface %))))
+
+(defn draw-instructions-screen
+  [surface]
+  (let [[canvas] surface
+        instruction-image (dom/getElement "instructions")]
+    (fill-rect surface [0 0 total-width total-height] [102 204 255])
+    (draw-toolbar surface true)
+    (.drawImage canvas instruction-image 0 (- total-height 400))))
 
 (defn draw-start-screen
   [surface]
   (let [[canvas] surface
         god-image (dom/getElement "god")
-        title-image (dom/getElement "game-title")]
+        title-image (dom/getElement "game-title")
+        explanation-image (dom/getElement "explanation")]
     (fill-rect surface [0 0 total-width total-height] [102 204 255])
     (.drawImage canvas title-image 0 0)
-    (.drawImage canvas god-image (- total-width 300) (- total-height 300))))
+    (.drawImage canvas god-image (- total-width 300) (- total-height 300))
+    (.drawImage canvas explanation-image 0 (- total-height 400))))
 
 (defn start-keypress
   [state surface event]
@@ -325,8 +424,12 @@
       (pause-play-music)
       (do
         (swap! state (fn [curr]
-                       (assoc curr :stage :play)))
-        (start-game state surface)))))
+                       (if (= (:stage curr) :start)
+                         (assoc curr :stage :instructions)
+                         (assoc curr :stage :play))))
+        (if (= :instructions (:stage @state))
+          (draw-instructions-screen surface)
+          (start-game state surface))))))
 
 (defn boot-game
   [state surface]
@@ -339,5 +442,8 @@
         state (atom {:world initial-world
                      :stage :start
                      :paleontologist {:x 1 :y 1}
+                     :bones-examined []
+                     :place-bones false
+                     :bones #{} ;; where the bones at?
                      :selection nil})]
     (boot-game state surface)))
