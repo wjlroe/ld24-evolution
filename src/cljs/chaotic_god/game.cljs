@@ -29,24 +29,17 @@
 (def running? (atom true))
 
 (def tile-to-colour
-  {\M [67 67 67]
-   \space [90 126 175]
-   \d [87 53 1]
-   \t [127 128 106]})
+  {\space [90 126 175]
+   \d [87 53 1]})
 
-(def tunnel-images
-  {\M "mine"
-   \s "surface-dirt"
-   \t "tunnel-horizontal"
-   \v "tunnel-vertical"
-   \l "tunnel-corner-l"
-   \j "tunnel-corner-j"
-   \r "tunnel-corner-r"
-   \z "tunnel-corner-z"})
+(def tile-to-image
+  {\M :mine
+   \s :surface-dirt})
 
 (defn tunnel?
   [tile]
-  (contains? tunnel-images tile))
+  (or (= \t tile)
+      (= \M tile)))
 
 (def tile-to-meaning
   {\M :mine
@@ -60,6 +53,13 @@
   [[nx ny]]
   [(* sq-width nx)
    (* sq-height ny)])
+
+(defn pause-play-music
+  []
+  (let [audio (dom/getElement "soundtrack")]
+    (if (.-paused audio)
+      (.play audio)
+      (.pause audio))))
 
 (defn surface
   []
@@ -93,24 +93,51 @@
   (fill-rect surface [x y sq-width sq-height] (tile tile-to-colour [0 0 0]))
   (stroke-rect surface [x y sq-width sq-height] 1 [0 0 0]))
 
-(defn draw-tile
-  [surface x y tile]
-  (let [[canvas] surface]
-    (if (contains? tunnel-images tile)
-      (let [image (dom/getElement (tile tunnel-images))]
-        (.drawImage canvas image x y))
-      (draw-square surface x y tile))))
+(defn which-tunnel-tile
+  [env {:keys [x y]}]
+  (cond
+   (and (tunnel-to-left? x y env)
+        (tunnel-to-right? x y env))
+   :tunnel-horizontal ;; the horizontal tunnel tile
+   (and (not (tunnel-to-left? x y env))
+        (not (tunnel-to-right? x y env))
+        (or (tunnel-above? x y env)
+            (tunnel-below? x y env)))
+   :tunnel-vertical ;; vertical tunnel
+   (and (tunnel-above? x y env)
+        (tunnel-to-right? x y env)
+        (not (tunnel-to-left? x y env))
+        (not (tunnel-below? x y env)))
+   :tunnel-corner-l ;; tunnel L piece
+   (and (tunnel-above? x y env)
+        (tunnel-to-left? x y env)
+        (not (tunnel-to-right? x y env))
+        (not (tunnel-below? x y env)))
+   :tunnel-corner-j
+   (and (tunnel-to-right? x y env)
+        (tunnel-below? x y env)
+        (not (tunnel-to-left? x y env))
+        (not (tunnel-above? x y env)))
+   :tunnel-corner-r
+   (and (tunnel-to-left? x y env)
+        (tunnel-below? x y env)
+        (not (tunnel-above? x y env))
+        (not (tunnel-to-right? x y env)))
+   :tunnel-corner-z
+   true
+   :tunnel-vertical ;; first tunnel tile placed
+   ))
 
-(defn draw-game-world
-  [state surface]
-  (let [[_ width height] surface
-        {:keys [world selection paleontologist]} state]
-    (doseq [[y-index squares] (map-indexed vector world)
-            [x-index square]  (map-indexed vector squares)]
-      (draw-tile surface (* x-index sq-width) (* y-index sq-height) square))
-    (fill-rect surface [(* (:x paleontologist) sq-width) (* (:y paleontologist) sq-height) sq-width sq-height] [254 190 88])
-    (when selection
-      (stroke-rect surface [(* (:x selection) sq-width) (* (:y selection) sq-height) sq-width sq-height] 1 [43 197 0]))))
+(defn draw-tile
+  [surface env coords x y tile]
+  (let [[canvas] surface]
+    (if (contains? tile-to-colour tile)
+      (draw-square surface x y tile)
+      (let [image (if (contains? tile-to-image tile)
+                    (tile tile-to-image)
+                    (which-tunnel-tile env coords))
+            image (dom/getElement (name image))]
+        (.drawImage canvas image x y)))))
 
 (defn deconstruct-environment
   [world {:keys [x y]}]
@@ -124,6 +151,19 @@
      :right (apply str right)
      :given-row given-row
      :given-sq  given-sq}))
+
+(defn draw-game-world
+  [state surface]
+  (let [[_ width height] surface
+        {:keys [world selection paleontologist]} state]
+    (doseq [[y-index squares] (map-indexed vector world)
+            [x-index square]  (map-indexed vector squares)]
+      (let [coords {:x x-index :y y-index}
+            env (deconstruct-environment world coords)]
+        (draw-tile surface env coords (* x-index sq-width) (* y-index sq-height) square)))
+    (fill-rect surface [(* (:x paleontologist) sq-width) (* (:y paleontologist) sq-height) sq-width sq-height] [254 190 88])
+    (when selection
+      (stroke-rect surface [(* (:x selection) sq-width) (* (:y selection) sq-height) sq-width sq-height] 1 [43 197 0]))))
 
 (defn edge-left?
   [x y _]
@@ -155,7 +195,7 @@
 
 (defn tunnel-depth
   [x y {:keys [above]}]
-  (count (take-while #(contains? (set (conj (keys tunnel-images) \M)) %) (reverse (map #(nth % x) above)))))
+  (count (take-while tunnel? (reverse (map #(nth % x) above)))))
 
 (defn hit-bottom?
   [x y {:keys [below]}]
@@ -192,53 +232,12 @@
        true
        dig-coords))))
 
-(defn which-tunnel-tile
-  [env {:keys [x y]}]
-  (js/console.log "which-tunnel-tile env:" (pr-str env) "x: " x "y: " y)
-  (cond
-   (and (tunnel-to-left? x y env)
-        (tunnel-to-right? x y env))
-   \t ;; the horizontal tunnel tile
-   (and (not (tunnel-to-left? x y env))
-        (not (tunnel-to-right? x y env))
-        (or (tunnel-above? x y env)
-            (tunnel-below? x y env)))
-   \v ;; vertical tunnel
-   (and (tunnel-above? x y env)
-        (tunnel-to-right? x y env)
-        (not (tunnel-to-left? x y env))
-        (not (tunnel-below? x y env)))
-   \l ;; tunnel L piece
-   (and (tunnel-above? x y env)
-        (tunnel-to-right? x y env)
-        (not (tunnel-below? x y env))
-        (not (tunnel-to-left? x y env)))
-   \l
-   (and (tunnel-above? x y env)
-        (tunnel-to-left? x y env)
-        (not (tunnel-to-right? x y env))
-        (not (tunnel-below? x y env)))
-   \j
-   (and (tunnel-to-right? x y env)
-        (tunnel-below? x y env)
-        (not (tunnel-to-left? x y env))
-        (not (tunnel-above? x y env)))
-   \r
-   (and (tunnel-to-left? x y env)
-        (tunnel-below? x y env)
-        (not (tunnel-above? x y env))
-        (not (tunnel-to-right? x y env)))
-   \z
-   true
-   \v ;; first tunnel tile placed
-   ))
-
 (defn dig-away-earth
   "Translate the given square coords into a tunnel square"
   [world coords]
   (let [{:keys [above below left right] :as env}
         (deconstruct-environment world coords)
-        tunnel-tile (which-tunnel-tile env coords)
+        tunnel-tile \t
         dig-row-now (apply str (concat left [tunnel-tile] right))]
     (concat above [dig-row-now] below)))
 
@@ -296,7 +295,9 @@
      (.log js/console "br event:" browser-event))
    (cond
     (= (.-charCode browser-event) key-codes/SPACE)
-    (pause-play-game))))
+    (pause-play-game)
+    (= (.-keyCode browser-event) key-codes/SLASH)
+    (pause-play-music))))
 
 (defn start-game
   [state surface]
@@ -318,15 +319,19 @@
     (.drawImage canvas god-image (- total-width 300) (- total-height 300))))
 
 (defn start-keypress
-  [state surface]
-  (swap! state (fn [curr]
-                 (assoc curr :stage :play)))
-  (start-game state surface))
+  [state surface event]
+  (let [browser-event (.getBrowserEvent event)]
+    (if (= (.-keyCode browser-event) key-codes/SLASH)
+      (pause-play-music)
+      (do
+        (swap! state (fn [curr]
+                       (assoc curr :stage :play)))
+        (start-game state surface)))))
 
 (defn boot-game
   [state surface]
   (draw-start-screen surface)
-  (events/listen js/window event-type/KEYPRESS #(start-keypress state surface)))
+  (events/listen js/window event-type/KEYPRESS #(start-keypress state surface %)))
 
 (defn ^:export main
   []

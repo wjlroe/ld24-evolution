@@ -4,6 +4,11 @@
   <body>
     <canvas width="750" height="550" id="surface"></canvas>
 
+    <h4>For everything to work - please just use Chrome :)</h4>
+    <p>To pause/play audio: press <strong>/</strong></p>
+    <p>Firefox/Safari has severe problems with HTML5 audio, so I wouldn't
+    bother using that.</p>
+
     <div style="display:none" id="images">
       <img src="surface-dirt1.png" id="surface-dirt">
       <img src="mine.png" id="mine">
@@ -35,5 +40,11 @@ if (window.location.port == "" ||
   })();
 }
     </script>
+    <audio id="soundtrack" loop autoplay>
+      <source src="soundtrack.mp3" type='audio/mpeg; codecs="mp3"'>
+      <source src="soundtrack.ogg" type='audio/ogg; codecs="vorbis"'>
+      <source src="soundtrack.webma" type='audio/webm; codecs="vorbis"'>
+      <p>You need Chrome, or IE9+ to get audio</p>
+    </audio>
   </body>
 </html>
