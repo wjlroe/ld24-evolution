@@ -25,6 +25,7 @@
 (def world-width (dec (count (first initial-world))))
 (def world-height (count initial-world))
 (def total-width (* sq-width (count (first initial-world))))
+(def total-height (* sq-height world-height))
 (def running? (atom true))
 
 (def tile-to-colour
@@ -33,9 +34,19 @@
    \d [87 53 1]
    \t [127 128 106]})
 
-(def tile-to-image-id
+(def tunnel-images
   {\M "mine"
-   \s "surface-dirt"})
+   \s "surface-dirt"
+   \t "tunnel-horizontal"
+   \v "tunnel-vertical"
+   \l "tunnel-corner-l"
+   \j "tunnel-corner-j"
+   \r "tunnel-corner-r"
+   \z "tunnel-corner-z"})
+
+(defn tunnel?
+  [tile]
+  (contains? tunnel-images tile))
 
 (def tile-to-meaning
   {\M :mine
@@ -85,8 +96,8 @@
 (defn draw-tile
   [surface x y tile]
   (let [[canvas] surface]
-    (if (contains? tile-to-image-id tile)
-      (let [image (dom/getElement (tile tile-to-image-id))]
+    (if (contains? tunnel-images tile)
+      (let [image (dom/getElement (tile tunnel-images))]
         (.drawImage canvas image x y))
       (draw-square surface x y tile))))
 
@@ -97,7 +108,6 @@
     (doseq [[y-index squares] (map-indexed vector world)
             [x-index square]  (map-indexed vector squares)]
       (draw-tile surface (* x-index sq-width) (* y-index sq-height) square))
-    (js/console.log "selection:" (pr-str selection))
     (fill-rect surface [(* (:x paleontologist) sq-width) (* (:y paleontologist) sq-height) sq-width sq-height] [254 190 88])
     (when selection
       (stroke-rect surface [(* (:x selection) sq-width) (* (:y selection) sq-height) sq-width sq-height] 1 [43 197 0]))))
@@ -125,27 +135,27 @@
 
 (defn tunnel-to-left?
   [x y {:keys [left]}]
-  (= \t (last left)))
+  (tunnel? (last left)))
 
 (defn tunnel-to-right?
   [x y {:keys [right]}]
-  (= \t (first right)))
+  (tunnel? (first right)))
 
 (defn tunnel-above?
   [x y {:keys [above]}]
-  (= \t (nth (last above) x)))
+  (tunnel? (nth (last above) x)))
 
 (defn tunnel-2-above?
   [x y {:keys [above]}]
-  (= \t (nth (second (reserve above)) x)))
+  (tunnel? (nth (second (reserve above)) x)))
 
 (defn tunnel-below?
   [x y {:keys [below]}]
-  (= \t (nth (first below) x)))
+  (tunnel? (nth (first below) x)))
 
 (defn tunnel-depth
   [x y {:keys [above]}]
-  (count (take-while #(contains? #{\t \M} %) (reverse (map #(nth % x) above)))))
+  (count (take-while #(contains? (set (conj (keys tunnel-images) \M)) %) (reverse (map #(nth % x) above)))))
 
 (defn hit-bottom?
   [x y {:keys [below]}]
@@ -156,7 +166,7 @@
   (if (or (= y 0) (= y 1)) ;; dig down into earth 2 squares first
     {:x x :y (inc y)}
     (let [env (deconstruct-environment world dig-coords)]
-      (js/console.log "env:" (pr-str env) "world-width:" world-width "dig-coords:" (pr-str dig-coords))
+      ;;(js/console.log "env:" (pr-str env) "world-width:" world-width "dig-coords:" (pr-str dig-coords))
       (cond
        (hit-bottom? x y env)
        dig-coords
@@ -182,13 +192,54 @@
        true
        dig-coords))))
 
+(defn which-tunnel-tile
+  [env {:keys [x y]}]
+  (js/console.log "which-tunnel-tile env:" (pr-str env) "x: " x "y: " y)
+  (cond
+   (and (tunnel-to-left? x y env)
+        (tunnel-to-right? x y env))
+   \t ;; the horizontal tunnel tile
+   (and (not (tunnel-to-left? x y env))
+        (not (tunnel-to-right? x y env))
+        (or (tunnel-above? x y env)
+            (tunnel-below? x y env)))
+   \v ;; vertical tunnel
+   (and (tunnel-above? x y env)
+        (tunnel-to-right? x y env)
+        (not (tunnel-to-left? x y env))
+        (not (tunnel-below? x y env)))
+   \l ;; tunnel L piece
+   (and (tunnel-above? x y env)
+        (tunnel-to-right? x y env)
+        (not (tunnel-below? x y env))
+        (not (tunnel-to-left? x y env)))
+   \l
+   (and (tunnel-above? x y env)
+        (tunnel-to-left? x y env)
+        (not (tunnel-to-right? x y env))
+        (not (tunnel-below? x y env)))
+   \j
+   (and (tunnel-to-right? x y env)
+        (tunnel-below? x y env)
+        (not (tunnel-to-left? x y env))
+        (not (tunnel-above? x y env)))
+   \r
+   (and (tunnel-to-left? x y env)
+        (tunnel-below? x y env)
+        (not (tunnel-above? x y env))
+        (not (tunnel-to-right? x y env)))
+   \z
+   true
+   \v ;; first tunnel tile placed
+   ))
+
 (defn dig-away-earth
   "Translate the given square coords into a tunnel square"
   [world coords]
-  (let [{:keys [above below left right]}
+  (let [{:keys [above below left right] :as env}
         (deconstruct-environment world coords)
-
-        dig-row-now (apply str (concat left "t" right))]
+        tunnel-tile (which-tunnel-tile env coords)
+        dig-row-now (apply str (concat left [tunnel-tile] right))]
     (concat above [dig-row-now] below)))
 
 (defn move-paleontologist
@@ -259,7 +310,12 @@
 
 (defn draw-start-screen
   [surface]
-  )
+  (let [[canvas] surface
+        god-image (dom/getElement "god")
+        title-image (dom/getElement "game-title")]
+    (fill-rect surface [0 0 total-width total-height] [102 204 255])
+    (.drawImage canvas title-image 0 0)
+    (.drawImage canvas god-image (- total-width 300) (- total-height 300))))
 
 (defn start-keypress
   [state surface]
