@@ -12,7 +12,7 @@
 (def initial-world
   ["               "
    " M             "
-   "ddddddddddddddd"
+   "sssssssssssssss"
    "ddddddddddddddd"
    "ddddddddddddddd"
    "ddddddddddddddd"
@@ -23,18 +23,25 @@
    "ddddddddddddddd"])
 
 (def world-width (dec (count (first initial-world))))
+(def world-height (count initial-world))
 (def total-width (* sq-width (count (first initial-world))))
+(def running? (atom true))
 
 (def tile-to-colour
   {\M [67 67 67]
-   \space [124 122 255]
+   \space [90 126 175]
    \d [87 53 1]
    \t [127 128 106]})
+
+(def tile-to-image-id
+  {\M "mine"
+   \s "surface-dirt"})
 
 (def tile-to-meaning
   {\M :mine
    \t :tunnel
    \d :dirt
+   \s :surface
    \space :sky})
 
 (defn grid-to-dimentions
@@ -75,14 +82,23 @@
   (fill-rect surface [x y sq-width sq-height] (tile tile-to-colour [0 0 0]))
   (stroke-rect surface [x y sq-width sq-height] 1 [0 0 0]))
 
-(defn update-canvas
+(defn draw-tile
+  [surface x y tile]
+  (let [[canvas] surface]
+    (if (contains? tile-to-image-id tile)
+      (let [image (dom/getElement (tile tile-to-image-id))]
+        (.drawImage canvas image x y))
+      (draw-square surface x y tile))))
+
+(defn draw-game-world
   [state surface]
   (let [[_ width height] surface
-        {:keys [world selection]} state]
+        {:keys [world selection paleontologist]} state]
     (doseq [[y-index squares] (map-indexed vector world)
             [x-index square]  (map-indexed vector squares)]
-      (draw-square surface (* x-index sq-width) (* y-index sq-height) square))
+      (draw-tile surface (* x-index sq-width) (* y-index sq-height) square))
     (js/console.log "selection:" (pr-str selection))
+    (fill-rect surface [(* (:x paleontologist) sq-width) (* (:y paleontologist) sq-height) sq-width sq-height] [254 190 88])
     (when selection
       (stroke-rect surface [(* (:x selection) sq-width) (* (:y selection) sq-height) sq-width sq-height] 1 [43 197 0]))))
 
@@ -185,56 +201,82 @@
       :paleontologist new-paleontologist
       :world new-world)))
 
+(defn pause-play-game
+  ([forced]
+     (reset! running forced))
+  ([]
+     (swap! running? not)))
+
+(defn end-game?
+  [{:keys [paleontologist] :as state}]
+  (do
+    (when (= (:y paleontologist) world-height)
+      (pause-play-game false))
+    state))
+
 (defn game
-  [timer state surface]
+  [state surface]
   (let [[_ width height] surface]
-    (swap! state (fn [curr]
-                   (update-canvas curr surface)
-                   (-> curr
-                       ;; Logic
-                       (move-paleontologist)
-                       )))))
+    (when @running?
+     (swap! state (fn [curr]
+                    (draw-game-world curr surface)
+                    (-> curr
+                        (move-paleontologist)
+                        (end-game?)))))))
 
 (defn abs-pos-to-coords
   [x y]
   [(- (int (Math/ceil (/ x sq-width))) 1)
    (- (int (Math/ceil (/ y sq-height))) 1)])
 
-(defn toggle-timer
-  [timer]
-  (if (not (.-enabled timer))
-    (. timer (start))
-    (. timer (stop))))
-
-(defn click
-  [timer state surface event]
+(defn game-click
+  [state surface event]
   (swap! state (fn [curr]
                  (let [abs-x (.-offsetX event)
                        abs-y (.-offsetY event)
                        [x y] (abs-pos-to-coords abs-x abs-y)]
                    (assoc curr :selection {:x x :y y})))))
 
-(defn keypress
-  [timer state e]
+(defn game-keypress
+  [state e]
   (let [browser-event (.getBrowserEvent e)]
    (do
      (.log js/console "event:" e)
      (.log js/console "br event:" browser-event))
    (cond
     (= (.-charCode browser-event) key-codes/SPACE)
-    (toggle-timer timer))))
+    (pause-play-game))))
+
+(defn start-game
+  [state surface]
+  (let [timer (goog.Timer. 300)]
+    (draw-game-world @state surface)
+    (. timer (start))
+    (events/listen timer goog.Timer/TICK #(game state surface))
+    (events/listen js/window event-type/KEYDOWN #(game-keypress state %))
+    (events/listen js/window event-type/TOUCHSTART #(game-keypress state %))
+    (events/listen js/window event-type/CLICK #(game-click state surface %))))
+
+(defn draw-start-screen
+  [surface]
+  )
+
+(defn start-keypress
+  [state surface]
+  (swap! state (fn [curr]
+                 (assoc curr :stage :play)))
+  (start-game state surface))
+
+(defn boot-game
+  [state surface]
+  (draw-start-screen surface)
+  (events/listen js/window event-type/KEYPRESS #(start-keypress state surface)))
 
 (defn ^:export main
   []
   (let [surface (surface)
-        [_ width _] surface
-        timer (goog.Timer. 300)
         state (atom {:world initial-world
+                     :stage :start
                      :paleontologist {:x 1 :y 1}
                      :selection nil})]
-    (update-canvas @state surface)
-    (. timer (start))
-    (events/listen timer goog.Timer/TICK #(game timer state surface))
-    (events/listen js/window event-type/KEYPRESS #(keypress timer state %))
-    (events/listen js/window event-type/TOUCHSTART #(keypress timer state %))
-    (events/listen js/window event-type/CLICK #(click timer state surface %))))
+    (boot-game state surface)))
