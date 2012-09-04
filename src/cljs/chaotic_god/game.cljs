@@ -58,6 +58,12 @@
   []
   (events/removeAll))
 
+(defn wire-up-key-events
+  [handler]
+  (events/listen js/window event-type/KEYPRESS handler)
+  (events/listen js/window event-type/KEYUP handler)
+  (events/listen js/window event-type/KEYDOWN handler))
+
 (defn win-screen
   [state surface]
   (let [[canvas] surface
@@ -378,24 +384,34 @@
 
 (defn game-keypress
   [state e]
-  (let [browser-event (.getBrowserEvent e)]
-   (do
-     (.log js/console "event:" e)
-     (.log js/console "br event:" browser-event))
-   (cond
-    (= (.-charCode browser-event) key-codes/SPACE)
-    (pause-play-game)
-    (= (.-keyCode browser-event) key-codes/SLASH)
-    (pause-play-music))))
+  (let [browser-event (.getBrowserEvent e)
+        key-code (.-keyCode browser-event)]
+    (.log js/console "event:" e)
+    (.log js/console "br event:" browser-event)
+    (when (= key-code key-codes/SPACE)
+      (.preventDefault e))
+    (when (= (.-type e) event-type/KEYUP)
+      ;; handle the actual events
+      (case key-code
+        key-codes/SLASH
+        (pause-play-music)
+        key-codes/SPACE
+        (pause-play-game)))))
 
 (defn start-game
   [state surface]
   (let [timer (goog.Timer. 300)]
     (draw-game-world @state surface)
     (. timer (start))
+    (empty-event-handlers)
     (events/listen timer goog.Timer/TICK #(game state surface))
-    (events/listen js/window event-type/KEYDOWN #(game-keypress state %))
+    ;; Need to handle all keyboard events
+    (wire-up-key-events #(game-keypress state %))
+
+    ;; Touch? No...
     (events/listen js/window event-type/TOUCHSTART #(game-keypress state %))
+
+    ;; Mousy mousy
     (events/listen js/window event-type/MOUSEDOWN #(game-click state surface %))))
 
 (defn draw-instructions-screen
@@ -419,22 +435,28 @@
 
 (defn start-keypress
   [state surface event]
-  (let [browser-event (.getBrowserEvent event)]
-    (if (= (.-keyCode browser-event) key-codes/SLASH)
-      (pause-play-music)
-      (do
-        (swap! state (fn [curr]
-                       (if (= (:stage curr) :start)
-                         (assoc curr :stage :instructions)
-                         (assoc curr :stage :play))))
-        (if (= :instructions (:stage @state))
-          (draw-instructions-screen surface)
-          (start-game state surface))))))
+  (let [browser-event (.getBrowserEvent event)
+        key-code (.-keyCode browser-event)]
+    (when (= key-code key-codes/SPACE)
+      (.preventDefault event))
+    ;; Ignore everything but KEYUPs
+    (when (= (.-type event) event-type/KEYUP)
+      (if (= (.-keyCode browser-event) key-codes/SLASH)
+        (pause-play-music)
+        (do
+          (swap! state (fn [curr]
+                         (if (= (:stage curr) :start)
+                           (assoc curr :stage :instructions)
+                           (assoc curr :stage :play))))
+          (if (= :instructions (:stage @state))
+            (draw-instructions-screen surface)
+            (start-game state surface)))))))
 
 (defn boot-game
   [state surface]
   (draw-start-screen surface)
-  (events/listen js/window event-type/KEYPRESS #(start-keypress state surface %)))
+  (empty-event-handlers)
+  (wire-up-key-events #(start-keypress state surface %)))
 
 (defn ^:export main
   []
