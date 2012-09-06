@@ -64,6 +64,19 @@
   (events/listen js/window event-type/KEYUP handler)
   (events/listen js/window event-type/KEYDOWN handler))
 
+(defn space-to-restart
+  [state e]
+  (let [browser-event (.getBrowserEvent e)
+        key-code (.-keyCode browser-event)]
+    (when (= key-code key-codes/SPACE)
+      (.preventDefault e))
+    (when (= (.-type e) event-type/KEYUP)
+      (case key-code
+        key-codes/SPACE
+        ;; FIXME: We need to be modiying the stage of the game - not calling
+        ;; the start function...
+        (start-game state surface)))))
+
 (defn win-screen
   [state surface]
   (let [[canvas] surface
@@ -71,6 +84,7 @@
         win-image (dom/getElement "win")
         win-text-image (dom/getElement "win-text")]
     (empty-event-handlers)
+    ;; (wire-up-key-events #(start-game state surface))
     (fill-rect surface [0 0 total-width total-height] [102 204 255])
     (.drawImage canvas win-image 0 0)
     (.drawImage canvas god-image (- total-width 300) (- total-height 300))
@@ -457,6 +471,12 @@
   (draw-start-screen surface)
   (empty-event-handlers)
   (wire-up-key-events #(start-keypress state surface %)))
+
+(defn game-loop
+  [state surface]
+  (let [game-timer (goog.Timer. 50) ;; game-state-changing timer
+        ]
+    (events/listen game-timer goog.Timer/TICK #(handle-state state surface))))
 
 (defn ^:export main
   []
