@@ -13,3 +13,4 @@
 /resources/public/game.js
 /_deploy
 .DS_Store
+.lein-repl-history
