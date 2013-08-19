@@ -2,7 +2,7 @@
   :description "A game"
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/clojurescript "0.0-1853"]
-                 [core.async "0.1.0-SNAPSHOT"]]
+                 [io.rkn/core.async "0.1.0-SNAPSHOT"]]
   :plugins [[lein-cljsbuild "0.3.2"]]
   :repositories {"sonatype-staging"
                  "https://oss.sonatype.org/content/groups/staging/"}
