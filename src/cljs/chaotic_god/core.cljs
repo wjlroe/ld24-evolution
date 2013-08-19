@@ -13,9 +13,8 @@
   (let [keyboard (utils/listen js/window :keydown)
         mouse    (utils/listen js/window :mousedown)]
     (go
-     (loop []
+     (while true
        (let [[v sc] (alts! [keyboard mouse])]
          (condp = sc
            keyboard (.log js/console "keyboard pressed")
-           mouse (.log js/console "mouse clicked!")))
-       (recur)))))
+           mouse (.log js/console "mouse clicked!")))))))
