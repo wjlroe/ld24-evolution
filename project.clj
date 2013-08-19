@@ -2,8 +2,10 @@
   :description "A game"
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [org.clojure/clojurescript "0.0-1853"]
-                 [io.rkn/core.async "0.1.0-SNAPSHOT"]]
-  :plugins [[lein-cljsbuild "0.3.2"]]
+                 [io.rkn/core.async "0.1.0-SNAPSHOT"]
+                 [marginalia "0.7.1"]]
+  :plugins [[lein-cljsbuild "0.3.2"]
+            [lein-marginalia "0.7.1"]]
   :repositories {"sonatype-staging"
                  "https://oss.sonatype.org/content/groups/staging/"}
   :source-path "src/clj"
