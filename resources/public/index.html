@@ -2,11 +2,6 @@
 <html>
   <head>
     <title>Chaotic God</title>
-    <link href='http://fonts.googleapis.com/css?family=Geostar+Fill'
-          rel='stylesheet' type='text/css'>
-    <style>
-/* font-family: 'Geostar Fill', cursive; */
-    </style>
   </head>
   <body>
     <canvas width="750" height="550" id="surface"></canvas>
@@ -38,12 +33,12 @@
     </div>
 
     <script src="game.js" type="text/javascript"></script>
-    <script>chaotic_god.game.main()</script>
+
 
     <script type="text/javascript">
-if (window.location.port == "" ||
+if (false && (window.location.port == "" ||
     window.location.port == "80" ||
-    window.location.port == "443") {
+    window.location.port == "443")) {
   var _gaq = _gaq || [];
   _gaq.push(['_setAccount', 'GOOGLE_ANALYTICS_TRACKING_CODE']);
   _gaq.push(['_trackPageview']);
@@ -55,7 +50,7 @@ if (window.location.port == "" ||
   })();
 }
     </script>
-    <audio id="soundtrack" loop autoplay>
+    <audio id="soundtrack" loop>
       <source src="soundtrack.mp3" type='audio/mpeg; codecs="mp3"'>
       <source src="soundtrack.ogg" type='audio/ogg; codecs="vorbis"'>
       <source src="soundtrack.webma" type='audio/webm; codecs="vorbis"'>
