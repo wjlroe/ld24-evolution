@@ -63,7 +63,7 @@
   [surface tunnel-tile x y tile]
   (let [[canvas] surface]
     (if (contains? tile-to-colour tile)
-      (ui/draw-square surface x y tile)
+      (draw-square surface x y tile)
       (let [image (if (contains? tile-to-image tile)
                     (tile tile-to-image)
                     tunnel-tile)
@@ -71,11 +71,11 @@
         (.drawImage canvas image x y)))))
 
 (defn draw-toolbar
-  [surface place-bones {:keys [world-width sq-width sq-height]}]
+  [surface place-bones {:keys [world-width sq-width sq-height] :as world-settings}]
   (fill-rect surface [(* world-width sq-width) 0 sq-width sq-height] [128 0 0])
   (when place-bones
     (stroke-rect surface [(* world-width sq-width) 0 sq-width sq-height] 1 [255 255 0]))
-  (draw-bones surface [{:x world-width :y 0}]))
+  (draw-bones surface [{:x world-width :y 0}] world-settings))
 
 (defn draw-instructions-screen
   [surface {:keys [total-width total-height]}]
@@ -124,6 +124,6 @@
     (doseq [{:keys [tunnel-tile square x y]} world-tiles]
       (draw-tile surface tunnel-tile x y square))
     (draw-toolbar surface place-bones world-settings)
-    (draw-bones surface bones)
-    (draw-paleontologist surface paleontologist)
+    (draw-bones surface bones world-settings)
+    (draw-paleontologist surface paleontologist world-settings)
     (draw-selection surface selection world-settings)))

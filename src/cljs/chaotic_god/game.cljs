@@ -256,7 +256,7 @@
 (defn game
   [state surface]
   (let [[_ width height] surface
-        {:keys [world selection paleontologist bones place-bones]} state
+        {:keys [world selection paleontologist bones place-bones]} @state
         world-tiles (world-tiles world)]
     (when @running?
       (swap! state (fn [curr]
@@ -268,10 +268,10 @@
       (when (win-game? @state)
         (js/console.log "WIN!!!!")
         (pause-play-game false)
-        (ui/win-screen state surface))
+        (ui/win-screen state surface world-settings))
       (when (end-game? @state)
         (pause-play-game false)
-        (ui/lose-screen state surface)))))
+        (ui/lose-screen state surface world-settings)))))
 
 (defn abs-pos-to-coords
   [x y]
@@ -341,23 +341,21 @@
                            (assoc curr :stage :instructions)
                            (assoc curr :stage :play))))
           (if (= :instructions (:stage @state))
-            (ui/draw-instructions-screen surface)
+            (ui/draw-instructions-screen surface world-settings)
             (start-game state surface)))))))
 
 (defn boot-game
   [state surface]
-  (ui/draw-start-screen surface)
+  (ui/draw-start-screen surface world-settings)
   (empty-event-handlers)
   (wire-up-key-events #(start-keypress state surface %)))
 
-(defn ^:export main
-  []
-  (let [surface (ui/surface)
-        state (atom {:world initial-world
-                     :stage :start
-                     :paleontologist {:x 1 :y 1}
-                     :bones-examined []
-                     :place-bones false
-                     :bones #{} ;; where the bones at?
-                     :selection nil})]
-    (boot-game state surface)))
+(let [surface (ui/surface)
+      state (atom {:world initial-world
+                   :stage :start
+                   :paleontologist {:x 1 :y 1}
+                   :bones-examined []
+                   :place-bones false
+                   :bones #{} ;; where the bones at?
+                   :selection nil})]
+  (boot-game state surface))
