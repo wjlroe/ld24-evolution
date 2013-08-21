@@ -358,4 +358,5 @@
                    :place-bones false
                    :bones #{} ;; where the bones at?
                    :selection nil})]
-  (boot-game state surface))
+  ; (boot-game state surface))
+)

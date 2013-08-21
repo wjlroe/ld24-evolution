@@ -14,6 +14,5 @@
                         :compiler {
                                    :output-dir "resources/public"
                                    :output-to "resources/public/game.js"
-                                   :static-fns true
-                                   :optimizations :none
+                                   :optimizations :whitespace
                                    :pretty-print false}}]})
