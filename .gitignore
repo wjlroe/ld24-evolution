@@ -10,7 +10,8 @@
 /.lein-cljs*
 /.lein-env
 /target
-/resources/public/game.js
+/resources/public/**/*.js
+/resources/public/**/*.cljs
 /_deploy
 .DS_Store
 .lein-repl-history
