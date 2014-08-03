@@ -31,7 +31,6 @@
 (def running? (atom true))
 (def min-num-bones 8)
 (def bone-selection-square {:x 14 :y 0})
-(def blocky-font "20pt Geostar Fill")
 
 (def tile-to-colour
   {\space [90 126 175]
