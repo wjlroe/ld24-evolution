@@ -15,3 +15,7 @@
 .DS_Store
 .lein-repl-history
 Thumbs.db
+resources/public/chaotic_god
+resources/public/cljs
+resources/public/game.js.map
+resources/public/goog
