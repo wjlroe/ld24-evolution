@@ -5,6 +5,8 @@
             [goog.events.EventType :as event-type]
             [goog.events.KeyCodes :as key-codes]))
 
+(enable-console-print!)
+
 ;; Canvas size should fit the world and pixels below
 (def sq-width 50)
 (def sq-height 50)
@@ -64,6 +66,11 @@
   (events/listen js/window event-type/KEYUP handler)
   (events/listen js/window event-type/KEYDOWN handler))
 
+(defn fill-rect
+  [[surface] [x y width height] [r g b]]
+  (set! (. surface -fillStyle) (str "rgb(" r "," g "," b ")"))
+  (.fillRect surface x y width height))
+
 (defn win-screen
   [state surface]
   (let [[canvas] surface
@@ -108,11 +115,6 @@
      (. surface -width)
      (. surface -height)]))
 
-(defn fill-rect
-  [[surface] [x y width height] [r g b]]
-  (set! (. surface -fillStyle) (str "rgb(" r "," g "," b ")"))
-  (.fillRect surface x y width height))
-
 (defn stroke-rect
   [[surface] [x y width height] line-width [r g b]]
   (set! (. surface -strokeStyle) (str "rgb(" r "," g "," b ")"))
@@ -130,8 +132,32 @@
 
 (defn draw-square
   [surface x y tile]
-  (fill-rect surface [x y sq-width sq-height] (tile tile-to-colour [0 0 0]))
+  (fill-rect surface [x y sq-width sq-height] (get tile-to-colour tile [0 0 0]))
   (stroke-rect surface [x y sq-width sq-height] 1 [0 0 0]))
+
+(defn tunnel-to-left?
+  [x y {:keys [left]}]
+  (tunnel? (last left)))
+
+(defn tunnel-to-right?
+  [x y {:keys [right]}]
+  (tunnel? (first right)))
+
+(defn tunnel-above?
+  [x y {:keys [above]}]
+  (tunnel? (nth (last above) x)))
+
+(defn tunnel-2-above?
+  [x y {:keys [above]}]
+  (tunnel? (nth (second (reverse above)) x)))
+
+(defn tunnel-below?
+  [x y {:keys [below]}]
+  (tunnel? (nth (first below) x)))
+
+(defn tunnel-depth
+  [x y {:keys [above]}]
+  (count (take-while tunnel? (reverse (map #(nth % x) above)))))
 
 (defn which-tunnel-tile
   [env {:keys [x y]}]
@@ -164,9 +190,9 @@
         (not (tunnel-above? x y env))
         (not (tunnel-to-right? x y env)))
    :tunnel-corner-z
+   ;; first tunnel tile placed
    true
-   :tunnel-vertical ;; first tunnel tile placed
-   ))
+   :tunnel-vertical))
 
 (defn draw-tile
   [surface env coords x y tile]
@@ -174,7 +200,7 @@
     (if (contains? tile-to-colour tile)
       (draw-square surface x y tile)
       (let [image (if (contains? tile-to-image tile)
-                    (tile tile-to-image)
+                    (get tile-to-image tile)
                     (which-tunnel-tile env coords))
             image (dom/getElement (name image))]
         (.drawImage canvas image x y)))))
@@ -235,30 +261,6 @@
   [x y _]
   (= x (- world-width 1)))
 
-(defn tunnel-to-left?
-  [x y {:keys [left]}]
-  (tunnel? (last left)))
-
-(defn tunnel-to-right?
-  [x y {:keys [right]}]
-  (tunnel? (first right)))
-
-(defn tunnel-above?
-  [x y {:keys [above]}]
-  (tunnel? (nth (last above) x)))
-
-(defn tunnel-2-above?
-  [x y {:keys [above]}]
-  (tunnel? (nth (second (reserve above)) x)))
-
-(defn tunnel-below?
-  [x y {:keys [below]}]
-  (tunnel? (nth (first below) x)))
-
-(defn tunnel-depth
-  [x y {:keys [above]}]
-  (count (take-while tunnel? (reverse (map #(nth % x) above)))))
-
 (defn hit-bottom?
   [x y {:keys [below]}]
   (= 0 (count below)))
@@ -268,7 +270,6 @@
   (if (or (= y 0) (= y 1)) ;; dig down into earth 2 squares first
     {:x x :y (inc y)}
     (let [env (deconstruct-environment world dig-coords)]
-      ;;(js/console.log "env:" (pr-str env) "world-width:" world-width "dig-coords:" (pr-str dig-coords))
       (cond
        (hit-bottom? x y env)
        dig-coords
@@ -396,7 +397,8 @@
         key-codes/SLASH
         (pause-play-music)
         key-codes/SPACE
-        (pause-play-game)))))
+        (pause-play-game)
+        ::no-action))))
 
 (defn start-game
   [state surface]
