@@ -52,8 +52,6 @@
    \s :surface
    \space :sky})
 
-(defn donothing [])
-
 (defn empty-event-handlers
   "Hack hack hack hack"
   []
