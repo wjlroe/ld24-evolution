@@ -352,7 +352,7 @@
                          (check-win-condition))))
       (draw-game-world @state surface)
       (when (win-game? @state)
-        (js/console.log "WIN!!!!")
+        (println "WIN!!!!")
         (pause-play-game false)
         (win-screen state surface))
       (when (end-game? @state)
@@ -371,7 +371,7 @@
                        abs-y (.-offsetY event)
                        [x y] (abs-pos-to-coords abs-x abs-y)
                        {:keys [bones place-bones]} curr]
-                   (js/console.log "bones:" (pr-str bones) "place-bones:" (pr-str place-bones))
+                   (println "bones:" (pr-str bones) "place-bones:" (pr-str place-bones))
                    (if (= [x y] [(:x bone-selection-square) (:y bone-selection-square)])
                      (assoc curr :place-bones true)
                      (if (:place-bones curr)
@@ -384,8 +384,8 @@
   [state e]
   (let [browser-event (.getBrowserEvent e)
         key-code (.-keyCode browser-event)]
-    (.log js/console "event:" e)
-    (.log js/console "br event:" browser-event)
+    (println "event:" e)
+    (println "br event:" browser-event)
     (when (= key-code key-codes/SPACE)
       (.preventDefault e))
     (when (= (.-type e) event-type/KEYUP)
