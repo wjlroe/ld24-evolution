@@ -2,7 +2,7 @@
 
 ## Usage
 
-To Play, [visit the uploaded version](http://dnw27k0fsapad.cloudfront.net/)
+To Play, [visit the uploaded version](https://wilverine.itch.io/chaotic-god)
 
 ## License
 
