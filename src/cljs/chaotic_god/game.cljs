@@ -391,6 +391,8 @@
     (when (= (.-type e) event-type/KEYUP)
       ;; handle the actual events
       (case key-code
+        key-codes/M
+        (pause-play-music)
         key-codes/SLASH
         (pause-play-music)
         key-codes/SPACE
