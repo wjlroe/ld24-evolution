@@ -1,5 +1,7 @@
 # Chaotic God
 
+This was an entry for Ludum Dare 24 (August 24-27 2012). The theme was 'evolution'.
+
 ## Usage
 
 To Play, [visit the uploaded version](https://wilverine.itch.io/chaotic-god)
